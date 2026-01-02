@@ -6,17 +6,21 @@ A VS Code / Cursor extension that tracks your Z.ai GLM Coding Plan usage and dis
 
 - **Real-time Usage Display**: See your 5-hour token quota directly in the status bar
   - Shows percentage used and current tokens
-  - Example: `✓ ⚡ 1% • 14.6K tokens`
+  - Example: `✓ ⚡ 1% • 14.6K tokens
+    
 - **Detailed Tooltip**: Hover to see comprehensive usage stats:
   - 5-hour token quota with progress bar
   - 7-day usage (prompts + tokens)
   - 30-day usage (prompts + tokens)
   - Connection status and last update time
+    
 - **Quick Pick Menu**: Click status bar for detailed stats and actions
   - View all usage metrics
   - Refresh usage data
   - Configure settings
+    
 - **Automatic Refresh**: Configurable refresh interval (default: 5 minutes)
+  
 - **Secure API Key Storage**: Uses VS Code's encrypted SecretStorage
 
 ## Installation
@@ -185,4 +189,5 @@ For issues or questions:
 - Check the [Z.ai Documentation](https://docs.z.ai/devpack/overview)
 - Review this extension's source code
 - Contact Z.ai support for API-related questions
+
 

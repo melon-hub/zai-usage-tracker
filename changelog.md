@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] - 2026-01-03
+
+### Added
+- **Marketplace badges**: Added VS Code Marketplace and Open VSX badges to readme
+- **CLAUDE.md**: Added development and publishing workflow documentation
+- **Installation docs**: Updated readme with instructions for VS Code, Windsurf, Cursor
+
+### Changed
+- **Support section**: Added GitHub issues link for bug reports
+
 ## [1.0.1] - 2026-01-02
 
 ### Security

@@ -1,6 +1,10 @@
 # Z.ai GLM Usage Tracker
 
-A VS Code / Cursor extension that tracks your Z.ai GLM Coding Plan usage and displays it in the status bar.
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/melon-hub.zai-usage-tracker?label=VS%20Code%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=melon-hub.zai-usage-tracker)
+[![Open VSX](https://img.shields.io/open-vsx/v/melon-hub/zai-usage-tracker?label=Open%20VSX&logo=eclipse)](https://open-vsx.org/extension/melon-hub/zai-usage-tracker)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A VS Code extension that tracks your Z.ai GLM Coding Plan usage and displays it in the status bar. Also works with Windsurf, VSCodium, and other VS Code forks.
 
 ## Features
 
@@ -25,10 +29,20 @@ A VS Code / Cursor extension that tracks your Z.ai GLM Coding Plan usage and dis
 
 ## Installation
 
-1. Download the latest `.vsix` file from releases
-2. In VS Code/Cursor, go to Extensions → `...` menu → Install from VSIX
-3. Select the downloaded `zai-usage-tracker-x.x.x.vsix` file
-4. Reload VS Code when prompted
+### VS Code
+Search for "Z.ai GLM Usage Tracker" in the Extensions marketplace, or:
+```
+ext install melon-hub.zai-usage-tracker
+```
+
+### Windsurf / VSCodium / Other Forks
+Available on [Open VSX](https://open-vsx.org/extension/melon-hub/zai-usage-tracker). Search for "Z.ai GLM Usage Tracker" in Extensions.
+
+### Cursor
+Cursor uses a curated marketplace. Install manually:
+1. Download the latest `.vsix` from [GitHub Releases](https://github.com/melon-hub/zai-usage-tracker/releases)
+2. In Cursor: Extensions → `...` menu → Install from VSIX
+3. Select the downloaded file
 
 ### Building from Source
 
@@ -186,8 +200,12 @@ MIT
 ## Support
 
 For issues or questions:
+- [Open an issue on GitHub](https://github.com/melon-hub/zai-usage-tracker/issues)
 - Check the [Z.ai Documentation](https://docs.z.ai/devpack/overview)
-- Review this extension's source code
 - Contact Z.ai support for API-related questions
+
+## Contributing
+
+Contributions welcome! See [CLAUDE.md](./CLAUDE.md) for development and publishing workflow.
 
 

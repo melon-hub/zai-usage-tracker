@@ -1,0 +1,29 @@
+# Build output
+out/
+*.js.map
+
+# Dependencies
+node_modules/
+
+# VS Code extension packages
+*.vsix
+
+# Debug output - SECURITY: may contain sensitive data
+debug-output.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Debug and test scripts
+debug-api.mjs
+debug-build.js
+test-api.js
+test-compile.js
+check-compile.js
+compile-test.ps1

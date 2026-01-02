@@ -1,0 +1,34 @@
+# VS Code / Development
+.vscode/**
+.vscode-test/**
+.git/**
+.gitignore
+
+# Source TypeScript (compiled to out/)
+src/**
+tsconfig.json
+**/tsconfig.json
+**/*.ts
+**/*.map
+**/.eslintrc.json
+
+# Debug and test files - SECURITY: may contain sensitive data
+debug-output.md
+debug-api.mjs
+debug-build.js
+test-api.js
+test-compile.js
+check-compile.js
+compile-test.ps1
+out/test-import.js
+out/webview/**
+
+# Build artifacts
+node_modules/**
+*.vsix
+
+# Documentation not needed in package
+BUILD.md
+IMPLEMENTATION_SUMMARY.md
+QUICK_START.md
+vsc-extension-quickstart.md

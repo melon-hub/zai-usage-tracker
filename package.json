@@ -1,0 +1,81 @@
+{
+  "name": "zai-usage-tracker",
+  "displayName": "Z.ai GLM Usage Tracker",
+  "description": "Track your Z.ai GLM Coding Plan usage in the status bar",
+  "version": "1.0.1",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zaiUsage.refresh",
+        "title": "Refresh Usage",
+        "category": "Z.ai Usage Tracker"
+      },
+      {
+        "command": "zaiUsage.configure",
+        "title": "Configure Settings",
+        "category": "Z.ai Usage Tracker"
+      },
+      {
+        "command": "zaiUsage.debug",
+        "title": "Debug: Show Raw API Responses",
+        "category": "Z.ai Usage Tracker"
+      }
+    ],
+    "configuration": {
+      "title": "Z.ai Usage Tracker",
+      "properties": {
+        "zaiUsage.planTier": {
+          "type": "string",
+          "enum": [
+            "lite",
+            "pro",
+            "max"
+          ],
+          "default": "lite",
+          "description": "Your GLM Coding Plan tier",
+          "enumDescriptions": [
+            "Lite Plan: ~120 prompts every 5 hours",
+            "Pro Plan: ~600 prompts every 5 hours",
+            "Max Plan: ~2400 prompts every 5 hours"
+          ],
+          "order": 1
+        },
+        "zaiUsage.refreshInterval": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Refresh interval in minutes",
+          "order": 2
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.15.0",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.0"
+  }
+}

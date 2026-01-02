@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-01-03
+
+### Changed
+- **Updated icon**: New icon with solid background for better visibility on all marketplaces
+
 ## [1.0.3] - 2026-01-03
 
 ### Added

@@ -2,8 +2,9 @@
   "name": "zai-usage-tracker",
   "displayName": "Z.ai GLM Usage Tracker",
   "description": "Track your Z.ai GLM Coding Plan usage in the status bar",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "melon-hub",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",

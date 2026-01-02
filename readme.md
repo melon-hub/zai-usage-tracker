@@ -10,8 +10,8 @@ A VS Code extension that tracks your Z.ai GLM Coding Plan usage and displays it 
 
 - **Real-time Usage Display**: See your 5-hour token quota directly in the status bar
   - Shows percentage used and current tokens
-  - Example: `✓ ⚡ 1% • 14.6K tokens
-    
+  - Example: `✓ ⚡ 1% • 14.6K tokens`
+
 - **Detailed Tooltip**: Hover to see comprehensive usage stats:
   - 5-hour token quota with progress bar
   - 7-day usage (prompts + tokens)
@@ -95,12 +95,10 @@ Minimum: 1 minute, Default: 5 minutes
 Once configured, the extension will:
 
 1. Automatically activate when VS Code/Cursor starts
-2. Display usage in the status bar: `$(zap) 45/120 (38%)`
+2. Display usage in the status bar: `✓ ⚡ 1% • 14.6K tokens`
 3. Update periodically based on your refresh interval
 4. Show detailed tooltip on hover
-5. Provide quick actions on click:
-   - Refresh Usage
-   - Configure Settings
+5. Provide quick actions on click
 
 ## Commands
 
@@ -124,32 +122,13 @@ Background color indicates usage level:
 
 ## Development
 
-### Compile
-
 ```bash
-npm run compile
+npm run compile      # Compile TypeScript
+npm run watch        # Watch mode
+npx vsce package     # Package VSIX
 ```
 
-### Watch mode
-
-```bash
-npm run watch
-```
-
-### Package
-
-```bash
-npm install -g vsce
-vsce package
-```
-
-### Test API Endpoints
-
-The extension tries multiple Z.ai API endpoints to fetch usage data. To test endpoints manually:
-
-```bash
-node test-api.js YOUR_API_KEY
-```
+See [CLAUDE.md](./CLAUDE.md) for full development and publishing workflow.
 
 ## How It Works
 
@@ -170,7 +149,6 @@ The extension uses the official Z.ai monitor API endpoints:
 
 Run the debug command to see raw API responses:
 - Command: `Z.ai Usage Tracker: Debug: Show Raw API Responses`
-- Or run from terminal: `node debug-api.mjs YOUR_API_KEY`
 
 ## Privacy
 

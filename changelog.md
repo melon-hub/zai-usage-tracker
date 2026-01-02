@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.3] - 2026-01-03
+
+### Added
+- **Marketplace icon**: Added extension icon for better visibility
+
+### Changed
+- **Readme cleanup**: Fixed formatting issues, removed references to deleted files
+- **Streamlined Development section**: Simplified with link to CLAUDE.md
+
 ## [1.0.2] - 2026-01-03
 
 ### Added

@@ -184,6 +184,12 @@ For issues or questions:
 
 ## Contributing
 
-Contributions welcome! See [CLAUDE.md](./CLAUDE.md) for development and publishing workflow.
+Have an idea or found a bug? Contributions welcome!
+
+- **Bug reports**: [Open an issue](https://github.com/melon-hub/zai-usage-tracker/issues/new?template=bug_report.md)
+- **Feature requests**: [Open an issue](https://github.com/melon-hub/zai-usage-tracker/issues/new?template=feature_request.md)
+- **Pull requests**: Fork, make changes, submit a PR
+
+See [CLAUDE.md](./CLAUDE.md) for development and publishing workflow.
 
 

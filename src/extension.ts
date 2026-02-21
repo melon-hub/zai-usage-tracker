@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ZaiService, UsageData } from './api/zaiService';
 import { UsageIndicator } from './statusBar/usageIndicator';
-import { getConfiguration, getPlanLimit } from './config/configuration';
+import { getConfiguration } from './config/configuration';
 
 let zaiService: ZaiService | null = null;
 let usageIndicator: UsageIndicator | null = null;
@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Create status bar indicator immediately (always visible)
   if (!usageIndicator) {
-    zaiService = new ZaiService('', getPlanLimit('lite'));
+    zaiService = new ZaiService('');
     usageIndicator = new UsageIndicator(zaiService);
     usageIndicator.showNotConfigured();
   }
@@ -150,14 +150,11 @@ async function initializeService(context: vscode.ExtensionContext, apiKey?: stri
     return;
   }
 
-  const planLimit = getPlanLimit(config.planTier);
-
   // Update existing service or create new one
   if (zaiService) {
     zaiService.updateApiKey(effectiveApiKey);
-    zaiService.updatePlanLimit(planLimit);
   } else {
-    zaiService = new ZaiService(effectiveApiKey, planLimit);
+    zaiService = new ZaiService(effectiveApiKey);
   }
 
   // Update indicator
@@ -258,11 +255,6 @@ async function configureSettings(context: vscode.ExtensionContext): Promise<void
       detail: `Current: ${maskedApiKey}`
     },
     {
-      label: '$(package) Change Plan Tier',
-      description: 'Select your GLM Coding Plan tier',
-      detail: `Current: ${config.planTier.toUpperCase()}`
-    },
-    {
       label: '$(clock) Change Refresh Interval',
       description: 'Set how often to fetch usage data',
       detail: `Current: ${config.refreshInterval} minutes`
@@ -321,13 +313,10 @@ async function configureSettings(context: vscode.ExtensionContext): Promise<void
       
       vscode.window.showWarningMessage(
         `✓ API key saved securely!\nKey: ${maskedKey}`,
-        'Configure Plan Tier',
         'Test Connection',
         'Done'
       ).then(async (selection) => {
-        if (selection === 'Configure Plan Tier') {
-          await promptPlanTier(context);
-        } else if (selection === 'Test Connection') {
+        if (selection === 'Test Connection') {
           await initializeService(context);
           refreshUsage();
         }
@@ -338,25 +327,6 @@ async function configureSettings(context: vscode.ExtensionContext): Promise<void
     } else if (apiKey !== undefined) {
       // User cancelled or entered empty key
       vscode.window.showWarningMessage('API key not saved. Operation cancelled.');
-    }
-  } else if (selected.label.includes('Plan Tier')) {
-    const tier = await vscode.window.showQuickPick([
-      { label: 'Lite', description: '~120 prompts every 5 hours' },
-      { label: 'Pro', description: '~600 prompts every 5 hours' },
-      { label: 'Max', description: '~2400 prompts every 5 hours' }
-    ], {
-      placeHolder: 'Select your GLM Coding Plan tier'
-    });
-
-    if (tier) {
-      await vscode.workspace.getConfiguration('zaiUsage').update(
-        'planTier',
-        tier.label.toLowerCase(),
-        vscode.ConfigurationTarget.Global
-      );
-      vscode.window.showInformationMessage(`Plan tier updated to ${tier.label}. Refreshing...`);
-      await initializeService(context);
-      refreshUsage();
     }
   } else if (selected.label.includes('Refresh Interval')) {
     const interval = await vscode.window.showInputBox({
@@ -401,33 +371,6 @@ async function showApiKeyPrompt(): Promise<void> {
 
   if (result === 'Configure Now') {
     vscode.commands.executeCommand('zaiUsage.configure');
-  }
-}
-
-/**
- * Prompt user to select plan tier
- */
-async function promptPlanTier(context: vscode.ExtensionContext): Promise<void> {
-  const config = getConfiguration();
-
-  const tier = await vscode.window.showQuickPick([
-    { label: 'Lite', description: '~120 prompts every 5 hours' },
-    { label: 'Pro', description: '~600 prompts every 5 hours' },
-    { label: 'Max', description: '~2400 prompts every 5 hours' }
-  ], {
-    placeHolder: 'Select your GLM Coding Plan tier',
-    canPickMany: false
-  });
-
-  if (tier) {
-    await vscode.workspace.getConfiguration('zaiUsage').update(
-      'planTier',
-      tier.label.toLowerCase(),
-      vscode.ConfigurationTarget.Global
-    );
-    vscode.window.showWarningMessage(`✓ Plan tier set to ${tier.label}!`);
-    await initializeService(context);
-    refreshUsage();
   }
 }
 

@@ -1,9 +1,41 @@
+/**
+ * Represents a single token quota window from TOKENS_LIMIT
+ */
+export interface TokenQuota {
+  windowName: string;      // e.g., "5-Hour", "1-Week", "1-Month"
+  unit: number;            // 3=hour(s), 5=month(s), 6=week(s)
+  number: number;          // Quantity of the time unit
+  percentage: number;      // Usage percentage (0-100)
+  nextResetTime?: number;  // Unix timestamp (ms) when quota resets
+  actualTokens?: number;   // Actual tokens used in this window period
+}
+
+/**
+ * Represents MCP tool usage limits from TIME_LIMIT
+ */
+export interface TimeLimit {
+  windowName: string;      // e.g., "1-Month MCP Tools"
+  unit: number;            // 5=month(s)
+  number: number;          // Quantity of the time unit
+  percentage: number;      // Usage percentage (0-100)
+  usage: number;           // Total quota allowed
+  currentValue: number;    // Current usage count
+  remaining: number;       // Remaining quota
+  nextResetTime?: number;  // Unix timestamp (ms) when quota resets
+  usageDetails?: Array<{   // Per-tool usage breakdown
+    modelCode: string;
+    usage: number;
+  }>;
+}
+
 export interface UsageData {
-  // 5-hour rolling window quota (token-based)
-  current5HourTokens: number;   // Tokens used in 5-hour window
-  limit5HourTokens: number;     // Token limit (e.g., 800M)
-  percentage5Hour: number;      // Percentage used
-  quotaResetTime?: Date;
+  // Dynamic token quota windows from API
+  tokenQuotas: TokenQuota[];  // All TOKENS_LIMIT items returned by API
+  // MCP tool limits from API
+  timeLimits: TimeLimit[];    // All TIME_LIMIT items returned by API
+  // Today stats
+  todayPrompts: number;
+  todayTokens: number;
   // 7-day stats
   sevenDayPrompts: number;
   sevenDayTokens: number;
@@ -13,6 +45,8 @@ export interface UsageData {
   // Metadata
   lastUpdated: Date;
   connectionStatus: 'connected' | 'disconnected' | 'error';
+  // Plan level from quota limit API
+  planLevel?: string;        // e.g., "free", "pro", "enterprise"
 }
 
 export interface FetchResult {
@@ -23,13 +57,18 @@ export interface FetchResult {
 
 interface QuotaLimitResponse {
   limits?: Array<{
-    type: string;
+    type: 'TOKENS_LIMIT' | 'TIME_LIMIT';
+    unit: number;            // 3=hour(s), 5=month(s), 6=week(s)
+    number: number;          // Quantity of the time unit
     percentage: number;
-    currentValue?: number;
+    nextResetTime?: number;
+    // TIME_LIMIT specific fields
     usage?: number;
-    limit?: number;
-    usageDetails?: any;
+    currentValue?: number;
+    remaining?: number;
+    usageDetails?: any[];
   }>;
+  level?: string;
 }
 
 interface ModelUsageResponse {
@@ -42,12 +81,10 @@ interface ModelUsageResponse {
 
 export class ZaiService {
   private apiKey: string;
-  private planLimit: number;
   private baseUrl = 'https://api.z.ai';
 
-  constructor(apiKey: string, planLimit: number) {
+  constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.planLimit = planLimit;
   }
 
   /**
@@ -64,55 +101,119 @@ export class ZaiService {
     try {
       const now = new Date();
 
-      const formatDateTime = (date: Date): string => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      };
-
       // Time windows for different stats
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const start7d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
       const start30d = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
 
-      const queryParams7d = `?startTime=${encodeURIComponent(formatDateTime(start7d))}&endTime=${encodeURIComponent(formatDateTime(end))}`;
-      const queryParams30d = `?startTime=${encodeURIComponent(formatDateTime(start30d))}&endTime=${encodeURIComponent(formatDateTime(end))}`;
+      const queryParamsToday = `?startTime=${encodeURIComponent(this.formatDateTime(startToday))}&endTime=${encodeURIComponent(this.formatDateTime(end))}`;
+      const queryParams7d = `?startTime=${encodeURIComponent(this.formatDateTime(start7d))}&endTime=${encodeURIComponent(this.formatDateTime(end))}`;
+      const queryParams30d = `?startTime=${encodeURIComponent(this.formatDateTime(start30d))}&endTime=${encodeURIComponent(this.formatDateTime(end))}`;
 
       // Fetch all endpoints in parallel
-      const [quotaLimitResult, modelUsage7dResult, modelUsage30dResult] = await Promise.allSettled([
+      const [quotaLimitResult, modelUsageTodayResult, modelUsage7dResult, modelUsage30dResult] = await Promise.allSettled([
         this.fetchEndpoint(`${this.baseUrl}/api/monitor/usage/quota/limit`, 'Quota limit'),
+        this.fetchEndpoint(`${this.baseUrl}/api/monitor/usage/model-usage${queryParamsToday}`, 'Today usage'),
         this.fetchEndpoint(`${this.baseUrl}/api/monitor/usage/model-usage${queryParams7d}`, '7-day usage'),
         this.fetchEndpoint(`${this.baseUrl}/api/monitor/usage/model-usage${queryParams30d}`, '30-day usage')
       ]);
 
       // Initialize values
-      let current5HourTokens = 0;
-      let limit5HourTokens = 800000000; // 800M default
-      let percentage5Hour = 0;
+      const tokenQuotas: TokenQuota[] = [];
+      const timeLimits: TimeLimit[] = [];
+      let todayPrompts = 0;
+      let todayTokens = 0;
       let sevenDayPrompts = 0;
       let sevenDayTokens = 0;
       let thirtyDayPrompts = 0;
       let thirtyDayTokens = 0;
 
-      // Process quota limit response (5-hour token quota)
-      if (quotaLimitResult.status === 'fulfilled' && quotaLimitResult.value) {
-        const quotaData = quotaLimitResult.value as QuotaLimitResponse;
-        if (quotaData.limits) {
-          for (const limit of quotaData.limits) {
+      // Process quota limit response - collect all TOKENS_LIMIT and TIME_LIMIT windows dynamically
+      const quotaLimitResponse = quotaLimitResult.status === 'fulfilled' ? quotaLimitResult.value as QuotaLimitResponse : null;
+      let planLevel: string | undefined;
+      
+      if (quotaLimitResponse) {
+        planLevel = quotaLimitResponse.level;
+        if (quotaLimitResponse.limits) {
+          for (const limit of quotaLimitResponse.limits) {
             if (limit.type === 'TOKENS_LIMIT') {
-              percentage5Hour = limit.percentage || 0;
-              if (limit.currentValue !== undefined) {
-                current5HourTokens = limit.currentValue;
-              }
-              if (limit.usage !== undefined) {
-                limit5HourTokens = limit.usage;
-              }
+              tokenQuotas.push({
+                windowName: this.formatWindowName(limit.unit, limit.number),
+                unit: limit.unit,
+                number: limit.number,
+                percentage: limit.percentage || 0,
+                nextResetTime: limit.nextResetTime,
+                actualTokens: undefined // Will be filled below
+              });
+            } else if (limit.type === 'TIME_LIMIT') {
+              timeLimits.push({
+                windowName: this.formatWindowName(limit.unit, limit.number) + ' MCP Tools',
+                unit: limit.unit,
+                number: limit.number,
+                percentage: limit.percentage || 0,
+                usage: limit.usage || 0,
+                currentValue: limit.currentValue || 0,
+                remaining: limit.remaining || 0,
+                nextResetTime: limit.nextResetTime,
+                usageDetails: limit.usageDetails
+              });
             }
           }
+        }
+      }
+
+      // Fetch actual usage for each token quota window based on its reset time
+      const quotaUsageRequests = tokenQuotas.map(async (quota) => {
+        if (!quota.nextResetTime || quota.percentage === 0) {
+          return null;
+        }
+
+        try {
+          // Calculate the start time of this quota window
+          const resetDate = new Date(quota.nextResetTime);
+          let startDate: Date;
+
+          // Calculate window start based on unit and number
+          if (quota.unit === 3) {
+            // Hours
+            startDate = new Date(resetDate.getTime() - quota.number * 3600000);
+          } else if (quota.unit === 6) {
+            // Weeks
+            startDate = new Date(resetDate.getTime() - quota.number * 7 * 86400000);
+          } else if (quota.unit === 5) {
+            // Months (approximate as 30 days)
+            startDate = new Date(resetDate.getTime() - quota.number * 30 * 86400000);
+          } else {
+            return null;
+          }
+
+          const queryParams = `?startTime=${encodeURIComponent(this.formatDateTime(startDate))}&endTime=${encodeURIComponent(this.formatDateTime(now))}`;
+          const result = await this.fetchEndpoint(
+            `${this.baseUrl}/api/monitor/usage/model-usage${queryParams}`,
+            `${quota.windowName} usage`
+          );
+
+          if (result && (result as ModelUsageResponse).totalUsage) {
+            const modelData = result as ModelUsageResponse;
+            quota.actualTokens = modelData.totalUsage?.totalTokensUsage || 0;
+          }
+        } catch (error) {
+          console.error(`Failed to fetch usage for ${quota.windowName}:`, error);
+        }
+
+        return null;
+      });
+
+      // Wait for all quota usage requests to complete
+      await Promise.allSettled(quotaUsageRequests);
+
+      // Process today model usage
+      if (modelUsageTodayResult.status === 'fulfilled' && modelUsageTodayResult.value) {
+        const modelData = modelUsageTodayResult.value as ModelUsageResponse;
+        if (modelData.totalUsage) {
+          todayPrompts = modelData.totalUsage.totalModelCallCount || 0;
+          todayTokens = modelData.totalUsage.totalTokensUsage || 0;
         }
       }
 
@@ -137,15 +238,17 @@ export class ZaiService {
       return {
         success: true,
         data: {
-          current5HourTokens,
-          limit5HourTokens,
-          percentage5Hour,
+          tokenQuotas,
+          timeLimits,
+          todayPrompts,
+          todayTokens,
           sevenDayPrompts,
           sevenDayTokens,
           thirtyDayPrompts,
           thirtyDayTokens,
           lastUpdated: new Date(),
-          connectionStatus: 'connected'
+          connectionStatus: 'connected',
+          planLevel
         }
       };
     } catch (error) {
@@ -156,6 +259,38 @@ export class ZaiService {
         error: errorMessage
       };
     }
+  }
+
+  /**
+   * Format date to API datetime string format
+   * @param date Date to format
+   * @returns Formatted string like "2024-02-21 14:30:45"
+   */
+  private formatDateTime(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
+   * Format a human-readable window name from unit and number
+   * @param unit 3=hour(s), 5=month(s), 6=week(s)
+   * @param number Quantity of the time unit
+   * @returns Formatted string like "5-Hour", "1-Week", "1-Month"
+   */
+  private formatWindowName(unit: number, number: number): string {
+    const unitNames: { [key: number]: string } = {
+      3: 'Hour',
+      5: 'Month',
+      6: 'Week'
+    };
+    const unitName = unitNames[unit] || 'Unknown';
+    const plural = number > 1 ? 's' : '';
+    return `${number}-${unitName}${plural}`;
   }
 
   /**
@@ -211,13 +346,6 @@ export class ZaiService {
   }
 
   /**
-   * Update plan limit
-   */
-  updatePlanLimit(planLimit: number): void {
-    this.planLimit = planLimit;
-  }
-
-  /**
    * Debug: Fetch and return raw API responses to see what data is available
    */
   async debugFetchRaw(): Promise<{ quotaLimit: any; modelUsage: any; toolUsage: any; modelUsage7Day: any }> {
@@ -231,18 +359,8 @@ export class ZaiService {
     const start7d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
     const end7d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-    const formatDateTime = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    };
-
-    const queryParams24h = `?startTime=${encodeURIComponent(formatDateTime(start24h))}&endTime=${encodeURIComponent(formatDateTime(end24h))}`;
-    const queryParams7d = `?startTime=${encodeURIComponent(formatDateTime(start7d))}&endTime=${encodeURIComponent(formatDateTime(end7d))}`;
+    const queryParams24h = `?startTime=${encodeURIComponent(this.formatDateTime(start24h))}&endTime=${encodeURIComponent(this.formatDateTime(end24h))}`;
+    const queryParams7d = `?startTime=${encodeURIComponent(this.formatDateTime(start7d))}&endTime=${encodeURIComponent(this.formatDateTime(end7d))}`;
 
     const results = {
       quotaLimit: null as any,

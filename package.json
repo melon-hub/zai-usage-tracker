@@ -2,7 +2,7 @@
   "name": "zai-usage-tracker",
   "displayName": "Z.ai GLM Usage Tracker",
   "description": "Track your Z.ai GLM Coding Plan usage in the status bar",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "melon-hub",
   "icon": "icon.png",
   "license": "MIT",
@@ -56,28 +56,12 @@
     "configuration": {
       "title": "Z.ai Usage Tracker",
       "properties": {
-        "zaiUsage.planTier": {
-          "type": "string",
-          "enum": [
-            "lite",
-            "pro",
-            "max"
-          ],
-          "default": "lite",
-          "description": "Your GLM Coding Plan tier",
-          "enumDescriptions": [
-            "Lite Plan: ~120 prompts every 5 hours",
-            "Pro Plan: ~600 prompts every 5 hours",
-            "Max Plan: ~2400 prompts every 5 hours"
-          ],
-          "order": 1
-        },
         "zaiUsage.refreshInterval": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "description": "Refresh interval in minutes",
-          "order": 2
+          "order": 1
         }
       }
     }

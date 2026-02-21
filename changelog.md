@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.5] - 2026-02-22
+
+### Changed
+- **Auto-detect Plan Tier**: Removed manual plan tier configuration - extension now automatically detects your account level (Lite/Pro/Max) from API response
+- **Improved API Response Parsing**: Enhanced quota window detection and display logic
+
+### Added
+- **Screenshots Section**: Added UI screenshots to README for better visual preview of the extension
+- **API Documentation**: Added comprehensive API documentation in `docs/API-DOCUMENTATION.md`
+- **Debug Configuration**: Added `.vscode/launch.json` and `.vscode/tasks.json` for easier debugging
+
+### Fixed
+- **Status Bar Display**: Fixed status bar display issues and improved tooltip rendering
+
 ## [1.0.4] - 2026-01-03
 
 ### Changed

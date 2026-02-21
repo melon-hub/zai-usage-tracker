@@ -23,16 +23,40 @@ export class UsageIndicator {
     this.currentError = null;
 
     // Determine connection status icon
-    const connectionIcon = usage.connectionStatus === 'connected' ? '✓' : '⚠';
+    const connectionIcon = usage.connectionStatus === 'connected' ? '' : '$(warning)';
 
-    // Format the display text: show 5-hour token quota percentage and current tokens
-    const tokenDisplay = this.formatNumber(usage.current5HourTokens);
-    const text = `${connectionIcon} $(zap) ${usage.percentage5Hour}% • ${tokenDisplay} tokens`;
+    // Find the quota with the longest time window to display in status bar
+    // Only consider token quotas (TOKENS_LIMIT type), not tool limits (TIME_LIMIT)
+    // Priority: Month (5) > Week (6) > Hour (3), then compare number
+    const tokenQuotas = usage.tokenQuotas;
+    let displayQuota = tokenQuotas.length > 0 ? tokenQuotas[0] : null;
+    if (tokenQuotas.length > 1) {
+      displayQuota = tokenQuotas.reduce((max, quota) => {
+        const maxPriority = this.getTimeWindowPriority(max.unit, max.number);
+        const quotaPriority = this.getTimeWindowPriority(quota.unit, quota.number);
+        return quotaPriority > maxPriority ? quota : max;
+      });
+    }
+
+    // Format the display text
+    let text: string;
+    if (displayQuota) {
+      let usageInfo = '';
+      if (displayQuota.actualTokens && displayQuota.percentage > 0) {
+        const estimatedLimit = Math.round(displayQuota.actualTokens / (displayQuota.percentage / 100));
+        usageInfo = ` · ${this.formatNumber(displayQuota.actualTokens)} / ${this.formatNumber(estimatedLimit)} Tokens`;
+      }
+      text = `$(zap) GLM: ${connectionIcon} ${displayQuota.percentage}%${usageInfo}`;
+    } else {
+      text = `$(zap) GLM: ${connectionIcon} No quota data`;
+    }
+
     this.statusBarItem.text = text;
     this.statusBarItem.tooltip = this.getTooltip();
 
-    // Set background color based on usage
-    if (usage.percentage5Hour >= 80) {
+    // Set background color based on highest usage
+    const maxPercentage = displayQuota?.percentage || 0;
+    if (maxPercentage >= 80) {
       this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     } else {
       this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
@@ -45,7 +69,15 @@ export class UsageIndicator {
   showError(error: string): void {
     this.currentError = error;
     this.statusBarItem.text = `$(error) Error`;
-    this.statusBarItem.tooltip = `Error fetching Z.ai usage: ${error}\nClick to refresh`;
+
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.supportThemeIcons = true;  // Enable Codicon icons
+    md.appendMarkdown('## $(error) Error Fetching Usage\n\n');
+    md.appendMarkdown(`**Error**: \`${error}\`\n\n`);
+    md.appendMarkdown('[$(refresh) Click to Refresh](command:zaiUsage.refresh)');
+
+    this.statusBarItem.tooltip = md;
     this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
   }
 
@@ -76,11 +108,21 @@ export class UsageIndicator {
   /**
    * Get simple tooltip for status bar hover
    */
-  private getSimpleTooltip(): string {
-    if (!this.currentUsage) {
+  private getSimpleTooltip(): vscode.MarkdownString | string {
+    if (!this.currentUsage || this.currentUsage.tokenQuotas.length === 0) {
       return 'Click to view Z.ai usage details';
     }
-    return `Z.ai Usage: ${this.currentUsage.percentage5Hour}% of 5-hour quota\nClick to view details`;
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.supportHtml = true;
+    md.supportThemeIcons = true;  // Enable Codicon icons
+
+    const quotaSummary = this.currentUsage.tokenQuotas
+      .map(q => `**${q.windowName}**: \`${q.percentage}%\``)
+      .join(' • ');
+    md.appendMarkdown(`$(zap) **Z.ai Usage**: ${quotaSummary}\n\n`);
+    md.appendMarkdown('*Click to view details*');
+    return md;
   }
 
   /**
@@ -93,42 +135,132 @@ export class UsageIndicator {
   /**
    * Get tooltip with detailed information
    */
-  private getTooltip(): string {
+  private getTooltip(): vscode.MarkdownString | string {
     if (!this.currentUsage) {
       return 'Click for options';
     }
 
     const lastUpdated = this.formatDate(this.currentUsage.lastUpdated);
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.supportHtml = true;
+    md.supportThemeIcons = true;  // Enable Codicon icons
 
-    let tooltip = '⚡ Z.ai GLM Usage\n';
-    tooltip += '─────────────────\n\n';
-
-    // 5-Hour Token Quota
-    tooltip += `📊 5-Hour Quota (${this.currentUsage.percentage5Hour}%)\n`;
-    tooltip += `   ${this.formatNumber(this.currentUsage.current5HourTokens)} / ${this.formatNumber(this.currentUsage.limit5HourTokens)} tokens\n`;
-    tooltip += `   ${this.getProgressBar(this.currentUsage.percentage5Hour)}\n\n`;
-
-    // 7-Day Stats
-    tooltip += `📅 Last 7 Days\n`;
-    tooltip += `   ${this.currentUsage.sevenDayPrompts} prompts • ${this.formatNumber(this.currentUsage.sevenDayTokens)} tokens\n\n`;
-
-    // 30-Day Stats (All Time)
-    tooltip += `📆 Last 30 Days\n`;
-    tooltip += `   ${this.currentUsage.thirtyDayPrompts} prompts • ${this.formatNumber(this.currentUsage.thirtyDayTokens)} tokens\n\n`;
+    // Header
+    md.appendMarkdown('#### $(zap) Z.AI GLM Coding Plan Usage\n');
 
     // Connection status
+    let statusIcon = '';
+    let statusText = '';
     if (this.currentUsage.connectionStatus === 'connected') {
-      tooltip += `✓ Connected`;
+      statusIcon = '$(check)';
+      statusText = 'Connected';
     } else if (this.currentUsage.connectionStatus === 'disconnected') {
-      tooltip += `⚠ Offline`;
+      statusIcon = '$(warning)';
+      statusText = 'Offline';
     } else {
-      tooltip += `✗ Error`;
+      statusIcon = '$(error)';
+      statusText = 'Error';
     }
-    tooltip += ` • Updated ${lastUpdated}\n\n`;
 
-    tooltip += 'Click for more options';
+    // Build status line with plan level
+    let statusLine = `${statusIcon} *${statusText}* &emsp; $(clock) Updated *${lastUpdated}*`;
+    if (this.currentUsage.planLevel) {
+      const planLevelDisplay = `GLM Coding Plan **${this.currentUsage.planLevel.charAt(0).toUpperCase() + this.currentUsage.planLevel.slice(1)}**`;
+      statusLine += ` &emsp; $(star) *${planLevelDisplay}*`;
+    }
+    md.appendMarkdown(`${statusLine}\n\n`);
 
-    return tooltip;
+    md.appendMarkdown('---\n');
+    md.appendMarkdown('$(graph) *Plan Quotas*\n\n');
+    md.appendMarkdown('---\n');
+
+    // Token Quota Windows (dynamic - display all from API)
+    if (this.currentUsage.tokenQuotas.length > 0) {
+
+      // Build compact Markdown table (4 columns, no header)
+      md.appendMarkdown('|  |  |  |  |\n');
+      md.appendMarkdown('|:--------|------:|:--------:|:----------|\n');
+
+      for (const quota of this.currentUsage.tokenQuotas) {
+        const resetInfo = quota.nextResetTime
+          ? `Reset ${this.formatResetTime(quota.nextResetTime)}`
+          : 'No reset time';
+        const progressBar = this.getProgressBar(quota.percentage);
+        const quotaLabel = `${quota.windowName}`;
+        const percentageText = `<code>${quota.percentage}%</code>`;
+
+        md.appendMarkdown(`| ${quotaLabel} | ${percentageText} | ${progressBar} | *${resetInfo}* |\n`);
+      }
+
+      // Show estimated token limits based on usage data
+      const estimatedLimits = this.calculateEstimatedLimits();
+      if (estimatedLimits) {
+        md.appendMarkdown('\n');
+        md.appendMarkdown(`$(info) *Estimated limits: ${estimatedLimits}*\n\n`);
+        md.appendMarkdown('$(warning) *Note: Estimated based on usage % and used tokens, not official limits*\n\n');
+      }
+    } else {
+      md.appendMarkdown('$(info) *No Quota Data Available*\n\n');
+    }
+
+    md.appendMarkdown('---\n\n');
+
+    // Usage Stats Table
+    md.appendMarkdown('$(graph) *Usage Statistics*\n\n');
+    md.appendMarkdown('---\n');
+    md.appendMarkdown('|  |  |  |  |  |\n');
+    md.appendMarkdown('|:-------|--------:|:--------:|--------:|:--------:|\n');
+    md.appendMarkdown(`| $(calendar) Today&emsp; | **${this.currentUsage.todayPrompts}**  | Prompts&emsp; | **${this.formatNumber(this.currentUsage.todayTokens)}** | Tokens |\n`);
+    md.appendMarkdown(`| $(calendar) Weeks&emsp; | **${this.currentUsage.sevenDayPrompts}** | Prompts&emsp; | **${this.formatNumber(this.currentUsage.sevenDayTokens)}** | Tokens |\n`);
+    md.appendMarkdown(`| $(calendar) Months&emsp; | **${this.currentUsage.thirtyDayPrompts}** | Prompts&emsp; | **${this.formatNumber(this.currentUsage.thirtyDayTokens)}** | Tokens |\n`);
+    md.appendMarkdown('\n');
+    md.appendMarkdown('$(info) *Prompts = Model invocations (each user prompt may trigger 10-20+ calls)*\n\n');
+
+    // MCP Tool Limits
+    if (this.currentUsage.timeLimits.length > 0) {
+      md.appendMarkdown('---\n');
+      md.appendMarkdown('$(tools) *MCP Tool Quotas*\n\n');
+      md.appendMarkdown('---\n');
+      md.appendMarkdown('|  |  |  |\n');
+      md.appendMarkdown('|------:|:--------:|:----------:|\n');
+
+      for (const timeLimit of this.currentUsage.timeLimits) {
+        const resetInfo = timeLimit.nextResetTime
+          ? `Reset ${this.formatResetTime(timeLimit.nextResetTime)}`
+          : 'No reset time';
+        const progressBar = this.getProgressBar(timeLimit.percentage);
+        const usageText = `${timeLimit.currentValue}/${timeLimit.usage}`;
+
+        md.appendMarkdown(`| <code>${usageText}</code> | ${progressBar} | *${resetInfo}* |\n`);
+      }
+
+    }
+
+    md.appendMarkdown('---\n\n');
+
+    // Action links
+    md.appendMarkdown('[$(refresh) Refresh](command:zaiUsage.refresh "Fetch latest usage data") &emsp;');
+    md.appendMarkdown('[$(gear) Settings](command:zaiUsage.configure "Configure API key and settings")');
+
+    return md;
+  }
+
+  /**
+   * Get priority for time window comparison
+   * Higher priority = longer time period
+   * @param unit 3=hour(s), 5=month(s), 6=week(s)
+   * @param number Quantity of the time unit
+   * @returns Priority value (higher = longer period)
+   */
+  private getTimeWindowPriority(unit: number, number: number): number {
+    // Priority: Month > Week > Hour
+    const unitPriorities: { [key: number]: number } = {
+      5: 100000, // Month
+      6: 10000,  // Week
+      3: 1000    // Hour
+    };
+    return (unitPriorities[unit] || 0) + number;
   }
 
   /**
@@ -145,7 +277,7 @@ export class UsageIndicator {
   }
 
   /**
-   * Format date for display
+   * Format date for display (for past times)
    */
   private formatDate(date: Date): string {
     const now = new Date();
@@ -164,12 +296,77 @@ export class UsageIndicator {
   }
 
   /**
+   * Format reset time for display (for future times)
+   * Shows precise time with minutes for quota windows (e.g., 5-hour, 7-day limits)
+   */
+  private formatResetTime(timestamp: number): string {
+    const resetDate = new Date(timestamp);
+    const now = new Date();
+    const diffMs = resetDate.getTime() - now.getTime();
+
+    // Calculate time components
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    // Remaining minutes after removing full hours
+    const remainingMins = diffMins % 60;
+    // Remaining hours after removing full days
+    const remainingHours = diffHours % 24;
+
+    if (diffMins < 1) {
+      return 'Soon';
+    } else if (diffMins < 60) {
+      // Less than 1 hour: show minutes only
+      return `in ${diffMins}m`;
+    } else if (diffHours < 24) {
+      // Less than 1 day: show hours + minutes
+      return `in ${diffHours}h ${remainingMins}m`;
+    } else if (diffDays < 7) {
+      // Less than 1 week: show days + hours + minutes
+      return `in ${diffDays}d ${remainingHours}h ${remainingMins}m`;
+    } else {
+      // For longer periods, show the actual date and time in numeric format
+      const year = resetDate.getFullYear();
+      const month = String(resetDate.getMonth() + 1).padStart(2, '0');
+      const day = String(resetDate.getDate()).padStart(2, '0');
+      const hours = String(resetDate.getHours()).padStart(2, '0');
+      const minutes = String(resetDate.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
+  }
+
+  /**
    * Get text progress bar
    */
   private getProgressBar(percentage: number): string {
     const totalBars = 20;
     const filledBars = Math.round((percentage / 100) * totalBars);
-    return '█'.repeat(filledBars) + '░'.repeat(totalBars - filledBars);
+    return '<code>' + '█'.repeat(filledBars) + '░'.repeat(totalBars - filledBars) + '</code>';
+  }
+
+  /**
+   * Calculate estimated token limits based on usage percentage and actual usage
+   */
+  private calculateEstimatedLimits(): string | null {
+    if (!this.currentUsage || this.currentUsage.tokenQuotas.length === 0) {
+      return null;
+    }
+
+    const estimates: string[] = [];
+
+    for (const quota of this.currentUsage.tokenQuotas) {
+      // Skip if percentage is 0 to avoid division by zero, or if we don't have actual tokens
+      if (quota.percentage === 0 || !quota.actualTokens || quota.actualTokens === 0) {
+        continue;
+      }
+
+      // Calculate estimated total limit: actual / (percentage / 100)
+      const estimatedLimit = Math.round(quota.actualTokens / (quota.percentage / 100));
+      estimates.push(`${quota.windowName}: ${this.formatNumber(quota.actualTokens)}/${this.formatNumber(estimatedLimit)}`);
+    }
+
+    return estimates.length > 0 ? estimates.join(' • ') : null;
   }
 
   /**
@@ -178,32 +375,7 @@ export class UsageIndicator {
   async showQuickPick(): Promise<void> {
     const options: vscode.QuickPickItem[] = [];
 
-    // Add stats section if we have usage data
-    if (this.currentUsage) {
-      options.push({
-        label: `$(graph) 5-Hour Quota: ${this.currentUsage.percentage5Hour}%`,
-        description: `${this.formatNumber(this.currentUsage.current5HourTokens)} / ${this.formatNumber(this.currentUsage.limit5HourTokens)} tokens`,
-        kind: vscode.QuickPickItemKind.Default
-      });
-
-      options.push({
-        label: `$(calendar) Last 7 Days`,
-        description: `${this.currentUsage.sevenDayPrompts} prompts • ${this.formatNumber(this.currentUsage.sevenDayTokens)} tokens`
-      });
-
-      options.push({
-        label: `$(history) Last 30 Days`,
-        description: `${this.currentUsage.thirtyDayPrompts} prompts • ${this.formatNumber(this.currentUsage.thirtyDayTokens)} tokens`
-      });
-
-      // Separator
-      options.push({
-        label: '',
-        kind: vscode.QuickPickItemKind.Separator
-      });
-    }
-
-    // Action items
+    // Action items only - detailed stats are in the tooltip
     options.push({
       label: '$(refresh) Refresh Usage',
       description: 'Fetch latest usage data'
@@ -211,11 +383,11 @@ export class UsageIndicator {
 
     options.push({
       label: '$(settings-gear) Configure Settings',
-      description: 'Update API key and plan tier'
+      description: 'Update API key and refresh interval'
     });
 
     const selected = await vscode.window.showQuickPick(options, {
-      placeHolder: 'Z.ai Usage Tracker'
+      placeHolder: 'Z.ai Usage Tracker - Select an action'
     });
 
     if (selected?.label.includes('Refresh')) {
